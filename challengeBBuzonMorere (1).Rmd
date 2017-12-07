@@ -1,0 +1,264 @@
+---
+title: "ChallengeB-BuzonMorere"
+output:
+  pdf_document: default
+  html_document: default
+---
+### Task 1B ####
+
+##Step 1
+We choose the random forest method. The principle of the method can be explained with a tree. The top of the tree (root) constitutes the starting point and the bottom of the tree the decision. Each node of the tree is a decision to which we can associate a probability then each branch constitutes a subset of the sample. The random forest method will associate a probability to each ending point of the tree. 
+
+## Step 2
+First we import the data and the libraries:
+```{r}
+train <- read.csv(file=file.choose(),header=T,dec=".")
+attach(train)
+test<-read.csv(file=file.choose(),header=T,dec=".")
+attach(test)
+#Load les libraries
+load.libraries <- c('tidyverse', 'knitr')
+library(randomForest)
+library(dplyr)
+library(tidyr)
+```
+
+Before doing any computations we have to remove the NA from the data, we use the same method as in challenge A. 
+```{r}
+#First remove the features with more than 100 NA: 
+remove.vars <- train %>% summarise_all(.funs = funs(sum(is.na(.)))) %>% gather(key = "feature", value = "missing.observations") %>% filter(missing.observations > 100) %>% select(feature) %>% unlist
+train <- train %>% select(- one_of(remove.vars))
+
+train %>% summarise_all(.funs = funs(sum(is.na(.)))) %>% gather(key = "feature", value = "missing.observations") %>% filter(missing.observations > 0)
+
+train <- train %>% filter(is.na(GarageType) == FALSE, is.na(MasVnrType) == FALSE, is.na(BsmtFinType2) == FALSE, is.na(BsmtExposure) == FALSE, is.na(Electrical) == FALSE)
+# remove rows with NA in some of these variables, check if you take all missing values like this
+
+# make sure it's all clean : Yes
+train %>% summarise_all(.funs = funs(sum(is.na(.)))) %>% gather(key = "feature", value = "missing.observations") %>% filter(missing.observations > 0)
+
+```
+
+Method random forest
+
+```{r}
+#We use the features we choose in challenge A 
+model<-randomForest(SalePrice ~ MSZoning + LotArea + Neighborhood  + YearBuilt + OverallQual, data = train)
+```
+
+## Step 3-predictions on the test data
+
+```{r}
+ #Predict using random forest
+testpredicted <- predict(model, test[-1])
+#We do a dataframe to make it more readable
+data.frame(test$Id,testpredicted)
+```
+
+
+#### Task 2B ###
+First we need the exercise from Challenge A: 
+```{r}
+set.seed(1)
+library(tidyverse)
+
+### Step 1 and 2 on the PDF file of the (Challenge A)
+
+### Step 3 _ Simulate 150 independant draws of (x, y) following (T). Put them in a table with columns x and y.(Challenge A)
+
+  # First, we simulate the 150 independant draws of (x,y) following T 
+x<-rnorm(150,0,1)
+noise<-rnorm(150,0,1)
+y<-x^3+noise
+#Then we create the table called "resultats"
+resultats<-data.frame(y,x)
+
+###Step 6_ Split your sample into two. A training set and a test set. Plot the same scatterplot as in Step 1,differenciating in colour between the points you will use for training and the points you're keeping aside for the test. (Challenge A)
+  #First we split the sample 
+  #The test set called:test
+indexes = sample(1:nrow(resultats), size=0.2*nrow(resultats))
+test = resultats[indexes,]
+dim(test) 
+  
+  # The training set called :train (Challenge A)
+train = resultats[-indexes,]
+
+```
+
+## Step 1-Estimate a low-flexibility local linear model on the training data
+We use the function npreg to estimate a low-flexibility local linear (method ll) model on the training data with a bandwith of 0.5. The model is called 11.fit.lowflex
+```{r}
+library(np)
+ll.fit.lowflex<-npreg(y ~ x, data=train, bws=0.5, method="ll")
+summary(ll.fit.lowflex)
+
+```
+
+##Step 2- Estimate a high-flexibility local linear model on the training data
+We do the same method with a bandwith of 0.01. 
+
+```{r}
+ll.fit.highflex <- npreg(y ~ x, data=train, bws=0.01, method="ll")
+summary(ll.fit.highflex)
+```
+
+##Step 3- Plot the scatterplot of x-y, along with the predictions of ll.fit.lowflex and ll.fit.highflex,on only the training data.
+First, predict the models predlow and predhigh
+```{r}
+predlow<-predict(ll.fit.lowflex,data=train)
+predhigh<-predict(ll.fit.highflex,data=train)
+```
+
+Second, plot the points and the predicted lines 
+The prediction of the high-flexibility local linear model in blue, the prediction of the low-flexibility model in red 
+```{r}
+ggplot(data = train)+geom_point(mapping =aes(x = x, y = y))+geom_line(mapping = aes(x=x,y=x^3), color="black") + geom_line(mapping = aes(x=x,y=predlow),color="red")+geom_line(mapping=aes(x=x,y=predhigh), color ="blue")
+```
+
+
+##Step 4- Between the two models, which predictions are more variable? Which predictions have the least bias?
+```{r}
+var(predlow)
+var(predhigh)
+
+```
+We know, we have a trade-off between the variance and the bias. Indeed, if we try to decrease the variance we create more bias in our model. 
+Then as the model "predhigh"" has an higher variance than the model "predlow"", we can say that the bias of the "predlow"" model is higher than the one of the model "predhigh"" . Indeed, the least biased model is "predhigh". 
+
+##Step 5- Plot the scatterplot of x-y, along with the predictions of ll.fit.lowflex and ll.fit.highflex now using the test data
+First predict the model
+```{r}
+predlowtest<-predict(ll.fit.lowflex,newdata=test)
+predhightest<-predict(ll.fit.highflex,newdata=test)
+```
+
+Second, plot, first the points, then the 2 predicted lines
+```{r}
+ggplot(data = test)+geom_point(mapping =aes(x = x, y = y))+geom_line(mapping = aes(x=x,y=x^3), color="black")+geom_line(mapping = aes(x=x,y=predlowtest),color="red")+geom_line(mapping=aes(x=x,y=predhightest), color="blue")
+```
+Then we run the variables of each predicted model 
+```{r}
+var(predlowtest)
+var(predhightest)
+```
+The predictions of the model "hightest"" are more variables than the one from the model "lowtest".Hence, the predictions for lowtest have more bias than hightest.
+
+
+##Step 6- Create a vector of bandwidth going from 0.01 to 0.5 with a step of 0.001
+
+```{r}
+vector<-seq(0.01,0.5,0.001)
+```
+
+##Step 7-Estimate a local linear model y ~ x on the training data with each bandwidth
+
+As we will need later the prediction from the model we directly apply the prediction in the function. We use sapply to predict using the model for each bandwidth
+```{r}
+predQ7<-lapply(X=vector, FUN=function(vector) predict(npreg(y ~ x, data=train, bws=vector, method="ll"),newdata=train) )
+#But the question ask for npreg so we still do it 
+modQ7 <- lapply(X =vector, FUN = function(vector) {npreg(y ~ x, data = train, method = "ll", bws = vector)})
+```
+
+##Step 8-Compute for each bandwidth the MSE of the training data
+
+For each column we do the MSE
+```{r}
+MSEtrain <- function(fit7){
+  prediQ7 <- predict(object = fit7, newdata = train)
+  train %>% mutate(squarederror = (y - prediQ7)^2) %>% summarize(mse = mean(squarederror))
+}
+MSEtrainres <- unlist(lapply(X = modQ7, FUN = MSEtrain))
+
+```
+We store in MSEtrainres the MSE for each bandwidth
+
+##Step 9 - Compute for each bandwidth the MSE on the test data.
+Compute the MSE for each bandwidth the MSE of the tests data
+```{r}
+MSEtest <- function(fit7test){
+  prediQ7test <- predict(object = fit7test, newdata = test)
+test %>% mutate(squarederror = (y - prediQ7test)^2) %>% summarize(mse = mean(squarederror))
+}
+MSEtestres <- unlist(lapply(X = modQ7, FUN = MSEtest))
+
+```
+We get 491 MSE
+
+#Step 10 - Draw on the same plot how the MSE on training data, and test data, change when the bandwidth increases. Conclude.
+Create a data with the MEStest, MSE train and Bandwith
+```{r}
+
+mse.df <- tbl_df(data.frame(bandwidth = vector, MSEtrain = MSEtrainres, MSEtest =MSEtestres))
+#then plot the MSE 
+ggplot(data = mse.df)+geom_line(mapping = aes(x=vector, y=MSEtrainres), color="blue") + geom_line(mapping = aes(x=vector,y=MSEtestres),color="orange")
+```
+
+### Task 3B ###
+
+## Step 0-load libraries
+```{r}
+library(tidyverse)
+```
+
+##Step 1- Import the Cnil data
+We import the data CNIL
+```{r}
+datacnil<-read.csv2(file=file.choose(),header=T,dec=".")
+attach(datacnil)
+```
+
+## Step 2-Show a (nice) table with the number of organizations that has nominated a CNIL per department.
+
+We create a new data to which we add a new colonne dep=departement. To create it we take only the two first digit of the Code_Postal. 
+```{r}
+#We convert the column Code_Postal to factor so we can take into account the first 0 digit
+datacnil <- datacnil %>% mutate(Code_Postal = factor(Code_Postal))
+#Add the column dep which corresponds to the first 2 digits of code_postal
+datacnil2<-datacnil%>%mutate(dep=substr(Code_Postal,1,2))
+#We now convert the dep column which is character into numeric, then check it worked
+datacnil2<-datacnil2%>% mutate(dep=as.numeric(dep))
+str(datacnil2)
+#Create a vector from the column dep
+depvector <- as.vector(datacnil2['dep'])
+#We sum for each departement the number or rows, and put it in a table
+depper<-table(depvector)
+depper<-as.data.frame(depper)
+#Rename the column to better understand
+names(depper)[1]<-paste("department")
+names(depper)[2]<-paste("number of organizations that has named a CNIL")
+#What a nice table: 
+depper
+```
+
+##Step3-Merge the information from the SIREN dataset into the CNIL data. Explain the method you use.
+We tried a method that applied a function to a certain number of row then repeat it for the following rows. But we could not apply it
+Here is what we tried, we hope it worths some points: 
+sirenfile<-'siren.csv'
+index<-0
+chunksize<-300000
+con<-file(description =sirenfile, open='r' )
+datachunk<-read.table(con, nrows=chunksize, header=T, fill=TRUE, sep=";")
+actualcolnames<-names(datachunk)
+repeat{index<-index+1
+print(paste('processing rows:', index*chunksize))
+df[!duplicated(df[c(SIREN),])]
+  if(nrow(datachunk)!=chunksize){
+    print('wouhou')
+    break}
+datachunk<-read.table(con, nrows=chunksize, skip=0, header=FALSE, fill=TRUE, sep=';', col.names =actualcolnames )
+if index>5 break}
+close(con)
+head(datachunk)
+
+First we need to clean the SIren data. we use the method above to eliminate all the rows with the same siren number keeping the most recent one (using the column with the last update date as a criterion)
+Then the aim is to merge the 2 data using the SIREN number
+merged <- merge(datacnil,datasiren,by="SIREN")
+
+#Step 4-Plot the histogram of the size of the companies that nominated a CIL.
+What we would have done if Q3 worked:  
+hist(size$merged) 
+where merged is the merged data we would have liked to create in the previous question 
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
