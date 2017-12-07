@@ -52,7 +52,7 @@ model<-randomForest(SalePrice ~ MSZoning + LotArea + Neighborhood  + YearBuilt +
  #Predict using random forest
 testpredicted <- predict(model, test[-1])
 #We do a dataframe to make it more readable
-data.frame(test$Id,testpredicted)
+testpredicted <-data.frame(test$Id,testpredicted)
 ```
 
 
